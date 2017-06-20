@@ -15,10 +15,12 @@ namespace HeroesManager
         public String Version { get; private set; }
         public Int32 FileCount { get; private set; }
         public List<JMPEntry> Files { get; private set; } = new List<JMPEntry>();
+        public String Location { get; set; }
         public String Output { get; set; }
         
         public JMPFile(string Location, string Output)
         {
+            this.Location = Location;
             this.Output = Output;
             using (BinaryReader br = new BinaryReader(File.OpenRead(Location)))
             {
@@ -50,7 +52,6 @@ namespace HeroesManager
 
         private void Write(BinaryWriter bw)
         {
-            // Not working atm
             bw.Write(0x41544144);
             bw.Write(Encoding.ASCII.GetBytes(Version));
             bw.BaseStream.Seek(0x32, SeekOrigin.Begin);
@@ -60,7 +61,12 @@ namespace HeroesManager
             {
                 f.Write(bw);
             }
-            Console.WriteLine("FINISHED");
+            foreach (JMPEntry f in Files)
+            {
+                bw.BaseStream.Seek(f.Offset, SeekOrigin.Begin);
+                bw.Write(f.compressedFile);
+            }
+            Console.WriteLine("Finished repacking...");
         }
 
         public void Extract(BinaryReader br)
@@ -69,11 +75,19 @@ namespace HeroesManager
             foreach (JMPEntry f in Files)
             {
                 br.BaseStream.Seek(f.Offset, SeekOrigin.Begin);
-                var decompressedFile = Ionic.Zlib.ZlibStream.UncompressBuffer(br.ReadBytes(f.Zsize));
+                f.compressedFile = br.ReadBytes(f.Zsize);
+                var decompressedFile = Ionic.Zlib.ZlibStream.UncompressBuffer(f.compressedFile);
                 string fileName = f.Name.Substring(2);
                 Helper.ByteArrayToFile(Output + "\\" + fileName, fileName, decompressedFile);
             }
+
             Console.WriteLine("Finished extracing...");
+
+            Console.WriteLine("Trying to repack as .bak...");
+            using (BinaryWriter bw = new BinaryWriter(File.Create(Location + ".bak")))
+            {
+                Write(bw);
+            }
         }
 
     }
