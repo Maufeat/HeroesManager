@@ -69,7 +69,7 @@ namespace HeroesManager
                 Files.Add(newEntry);
                 Console.WriteLine("Registered File: " + path);
             }
-            using (BinaryWriter bw = new BinaryWriter(File.Create(BuildDirectory + "Data_c.jmp")))
+            using (BinaryWriter bw = new BinaryWriter(File.Create(BuildDirectory + "\\Data_compiled.jmp")))
             {
                 bw.Write(0x41544144);
                 bw.Write(Encoding.ASCII.GetBytes("1.0")); // never was anything other than 1.0
