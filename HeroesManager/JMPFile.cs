@@ -50,10 +50,57 @@ namespace HeroesManager
             }
         }
 
+        public JMPFile(string BuildDirectory)
+        {
+            // We are building a complete new Data.jmp from scratch
+            foreach (string file in Helper.GetFiles(BuildDirectory))
+            {
+                var path = file.Replace(BuildDirectory, "..");
+                var fileAsByte = File.ReadAllBytes(file);
+                JMPEntry newEntry = new JMPEntry()
+                {
+                    Name = path,
+                    Path = file,
+                    Offset = 0,
+                    Size = fileAsByte.Count(),
+                    compressedFile = Ionic.Zlib.ZlibStream.CompressBuffer(fileAsByte)
+                };
+                fileAsByte = null;
+                Files.Add(newEntry);
+                Console.WriteLine("Registered File: " + path);
+            }
+            using (BinaryWriter bw = new BinaryWriter(File.Create(BuildDirectory + "Data_c.jmp")))
+            {
+                bw.Write(0x41544144);
+                bw.Write(Encoding.ASCII.GetBytes("1.0")); // never was anything other than 1.0
+                bw.BaseStream.Seek(0x32, SeekOrigin.Begin);
+                bw.Write(Files.Count);
+                bw.BaseStream.Seek(0x36, SeekOrigin.Begin);
+                foreach (JMPEntry f in Files)
+                {
+                    Console.WriteLine("Writing Meta Info of : " + f.Name);
+                    f.Write(bw);
+                }
+                foreach (JMPEntry f in Files)
+                {
+                    Console.WriteLine("Writing Binary Info of : " + f.Name);
+                    Int32 currentPosition = Convert.ToInt32(bw.BaseStream.Position);
+                    // Go back and write Offset
+                    bw.BaseStream.Seek(f.BuildOffset, SeekOrigin.Begin);
+                    bw.Write(currentPosition);
+                    // Go now write compressed bytes
+                    bw.BaseStream.Seek(currentPosition, SeekOrigin.Begin);
+                    bw.Write(f.compressedFile);
+                    // Empty that shit
+                    f.compressedFile = null;
+                }
+                Console.WriteLine("Finished repacking...");
+            }
+        }
+
         private void Write(BinaryWriter bw)
         {
             bw.Write(0x41544144);
-            bw.Write(Encoding.ASCII.GetBytes(Version));
             bw.BaseStream.Seek(0x32, SeekOrigin.Begin);
             bw.Write(FileCount);
             bw.BaseStream.Seek(0x36, SeekOrigin.Begin);
@@ -82,12 +129,6 @@ namespace HeroesManager
             }
 
             Console.WriteLine("Finished extracing...");
-
-            Console.WriteLine("Trying to repack as .bak...");
-            using (BinaryWriter bw = new BinaryWriter(File.Create(Location + ".bak")))
-            {
-                Write(bw);
-            }
         }
 
     }
